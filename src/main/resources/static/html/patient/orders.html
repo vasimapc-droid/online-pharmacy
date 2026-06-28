@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+    <style>
+        .rx-warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 10px;
+            color: #92400e;
+        }
+        .rx-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .rx-badge.rx { background: #fee2e2; color: #991b1b; }
+        .rx-badge.otc { background: #d1fae5; color: #065f46; }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .logo-text {
+            font-size: 22px;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<!-- Navbar with Logo -->
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../../images/logo.png" alt="MediCare Logo" class="logo-img" onerror="this.style.display='none'">
+
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="appointments.html"> Appointments</a>
+        <a href="prescriptions.html"> Prescriptions</a>
+        <a href="orders.html" class="active"> Orders</a>
+        <a href="chat.html"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <h1>My Orders</h1>
+
+        <!-- Place Order -->
+        <div class="card" style="margin-top:20px;">
+            <h2>Place New Order</h2>
+            <form id="orderForm">
+                <div class="form-group">
+                    <label>Select Medicine <span style="color:red;">*</span></label>
+                    <select id="medicineSelect" required>
+                        <option value="">Loading medicines...</option>
+                    </select>
+                    <small style="color:#64748b;">🔒 = Prescription Required | 🟢 = OTC (No Prescription Needed)</small>
+                </div>
+                <div class="form-group">
+                    <label>Quantity <span style="color:red;">*</span></label>
+                    <input type="number" id="quantity" min="1" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label>Delivery Address <span style="color:red;">*</span></label>
+                    <textarea id="deliveryAddress" rows="3"
+                              placeholder="Enter complete address with pincode, city, and phone number" required></textarea>
+
+                </div>
+                <div id="rxWarning" style="display:none;"></div>
+                <button type="submit" class="btn btn-primary">Place Order</button>
+            </form>
+            <div id="orderMsg" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- Order History -->
+        <div class="card">
+            <h2>Order History</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Medicine</th>
+                    <th>Type</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Address</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody id="ordersTable">
+                <tr><td colspan="8" class="text-center">
+                    <div class="spinner-container">
+                        <div class="spinner"></div>
+                        <p>Loading orders...</p>
+                    </div>
+                </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PATIENT') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+
+    async function loadMedicines() {
+        try {
+            const res = await fetch('http://localhost:8080/api/medicines');
+            const medicines = await res.json();
+            const select = document.getElementById('medicineSelect');
+
+            select.innerHTML = '<option value="">Select a medicine</option>' +
+                medicines.map(m => `
+                        <option value="${m.id}">
+                            ${m.requiresPrescription ? '🔒' : '🟢'} ${m.name} - ₹${m.price} (Stock: ${m.stockQuantity}) ${m.requiresPrescription ? '[Rx]' : '[OTC]'}
+                        </option>
+                    `).join('');
+
+            window.medicinesList = medicines;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    document.getElementById('medicineSelect').addEventListener('change', function() {
+        const medicineId = this.value;
+        if (!medicineId || !window.medicinesList) return;
+
+        const selected = window.medicinesList.find(m => m.id == medicineId);
+        const rxWarning = document.getElementById('rxWarning');
+
+        if (selected && selected.requiresPrescription) {
+            rxWarning.style.display = 'block';
+            rxWarning.innerHTML = `
+                    <div class="rx-warning">
+                        ⚠️ <strong>Prescription Required!</strong><br>
+                        <strong>${selected.name}</strong> requires a valid prescription from a doctor.<br>
+                        <a href="appointments.html" style="color:#1a73e8; font-weight:600;">
+                            📅 Book a doctor consultation →
+                        </a>
+                    </div>`;
+        } else {
+            rxWarning.style.display = 'none';
+            rxWarning.innerHTML = '';
+        }
+    });
+
+    async function loadOrders() {
+        const tbody = document.getElementById('ordersTable');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center"><div class="spinner"></div></td></tr>';
+
+        try {
+            const res = await fetch(`http://localhost:8080/api/orders/patient/${user.id}`);
+            const orders = await res.json();
+
+            if (!orders || orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">📭 No orders yet. Place your first order above!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = orders.reverse().map(o => `
+                    <tr>
+                        <td><strong>${o.medicineName}</strong></td>
+                        <td><span class="rx-badge ${o.requiresPrescription ? 'rx' : 'otc'}">${o.requiresPrescription ? '🔒 Rx' : '🟢 OTC'}</span></td>
+                        <td>${o.quantity}</td>
+                        <td>₹${o.totalPrice}</td>
+                        <td><small>📍 ${o.deliveryAddress || 'N/A'}</small></td>
+                        <td>${new Date(o.orderDate).toLocaleDateString()}</td>
+                        <td><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></td>
+                        <td>
+                            ${o.status === 'PENDING' ?
+                `<a href="payment.html?orderId=${o.id}&amount=${o.totalPrice}"
+                                    class="btn btn-success" style="padding:5px 10px;font-size:12px;">💳 Pay</a>` :
+                o.status === 'DELIVERED' ? '✅ Done' : '—'}
+                        </td>
+                    </tr>
+                `).join('');
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="color:red;">❌ Error loading orders</td></tr>';
+        }
+    }
+
+    document.getElementById('orderForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('orderMsg');
+
+        const medicineId = document.getElementById('medicineSelect').value;
+        const quantity = parseInt(document.getElementById('quantity').value);
+        const address = document.getElementById('deliveryAddress').value.trim();
+
+        if (!medicineId) {
+            msg.innerHTML = '<div class="alert alert-error">❌ Please select a medicine</div>';
+            return;
+        }
+        if (!quantity || quantity < 1) {
+            msg.innerHTML = '<div class="alert alert-error">❌ Quantity must be at least 1</div>';
+            return;
+        }
+        if (!address || address.length < 10) {
+            msg.innerHTML = '<div class="alert alert-error">❌ Please enter a complete delivery address (at least 10 characters)</div>';
+            return;
+        }
+
+        msg.innerHTML = '<div class="spinner"></div><p style="text-align:center;">Placing order...</p>';
+
+        try {
+            const res = await fetch('http://localhost:8080/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patientId: user.id,
+                    medicineId: medicineId,
+                    quantity: quantity,
+                    deliveryAddress: address
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                msg.innerHTML = `<div class="alert alert-success">
+                        ✅ Order placed successfully!<br>
+                        Medicine: ${data.medicineName}<br>
+                        Qty: ${data.quantity}<br>
+                        Total: ₹${data.totalPrice}<br>
+                        Delivery to: ${data.deliveryAddress}
+                    </div>`;
+                document.getElementById('orderForm').reset();
+                document.getElementById('rxWarning').style.display = 'none';
+                loadOrders();
+                loadMedicines();
+            } else {
+                msg.innerHTML = `<div class="alert alert-error">❌ ${data.error || 'Order failed. Please try again.'}</div>`;
+            }
+        } catch (err) {
+            msg.innerHTML = '<div class="alert alert-error">❌ Server error. Please check if backend is running.</div>';
+        }
+    });
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+
+    loadMedicines();
+    loadOrders();
+</script>
+</body>
+</html>

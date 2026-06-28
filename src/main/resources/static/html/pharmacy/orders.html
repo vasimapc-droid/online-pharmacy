@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="inventory.html"> Inventory</a>
+        <a href="orders.html" class="active"> Orders</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Manage Orders</h1>
+
+        <div class="card" style="margin-top:20px;">
+            <h2>Incoming Orders</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Patient</th>
+                    <th>Medicine</th>
+                    <th>Qty</th>
+                    <th>Total</th>
+                    <th>Delivery Address</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody id="ordersTable">
+                <tr><td colspan="9" class="text-center">
+                    <div class="spinner"></div>
+                </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PHARMACY') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.pharmacyName || user.fullName;
+
+    async function loadOrders() {
+        const tbody = document.getElementById('ordersTable');
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center"><div class="spinner"></div></td></tr>';
+
+        try {
+            const res = await fetch(`http://localhost:8080/api/orders/pharmacy/${user.id}`);
+            const orders = await res.json();
+
+            if (!orders || orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">📭 No orders yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = orders.reverse().map(o => `
+                    <tr>
+                        <td><strong>#${o.id}</strong></td>
+                        <td>${o.patientName}<br><small>📞 ${o.patientPhone || 'N/A'}</small></td>
+                        <td>${o.medicineName}</td>
+                        <td>${o.quantity}</td>
+                        <td>₹${o.totalPrice}</td>
+                        <td><small>📍 ${o.deliveryAddress || 'No address provided'}</small></td>
+                        <td>${new Date(o.orderDate).toLocaleDateString()}</td>
+                        <td><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></td>
+                        <td>
+                            ${o.status === 'PENDING' ?
+                `<button class="btn btn-success" style="padding:5px 8px;font-size:12px;"
+                                    onclick="updateStatus(${o.id}, 'CONFIRMED')">✅ Confirm</button>` : ''}
+                            ${o.status === 'CONFIRMED' ?
+                `<button class="btn btn-primary" style="padding:5px 8px;font-size:12px;"
+                                    onclick="updateStatus(${o.id}, 'SHIPPED')">🚚 Ship</button>` : ''}
+                            ${o.status === 'SHIPPED' ?
+                `<button class="btn btn-warning" style="padding:5px 8px;font-size:12px;"
+                                    onclick="updateStatus(${o.id}, 'DELIVERED')">📦 Deliver</button>` : ''}
+                            ${o.status === 'DELIVERED' ? '✅ Delivered' : ''}
+                            ${o.status === 'CANCELLED' ? '❌ Cancelled' : ''}
+                        </td>
+                    </tr>
+                `).join('');
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color:red;">❌ Error loading orders</td></tr>';
+        }
+    }
+
+    async function updateStatus(orderId, status) {
+        if (confirm(`Update order #${orderId} to ${status}?`)) {
+            await fetch(`http://localhost:8080/api/orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status })
+            });
+            loadOrders();
+        }
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+
+    loadOrders();
+</script>
+</body>
+</html>

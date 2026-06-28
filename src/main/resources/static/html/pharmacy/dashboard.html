@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Dashboard - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html" class="active"> Dashboard</a>
+        <a href="inventory.html"> Inventory</a>
+        <a href="orders.html"> Orders</a>
+    </div>
+
+    <div class="main-content">
+        <h1><span id="pharmacyName"></span></h1>
+
+        <div class="stats-row" style="margin-top:25px;">
+            <div class="stat-card">
+                <h3 id="pendingOrders">0</h3>
+                <p>Pending Orders</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalMedicines">0</h3>
+                <p>Medicines in Stock</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalOrders">0</h3>
+                <p>Total Orders</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="lowStock">0</h3>
+                <p>Low Stock Items</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Quick Actions</h2>
+            <a href="inventory.html" class="btn btn-primary">Manage Inventory</a>
+            <a href="orders.html" class="btn btn-success" style="margin-left:10px;">View Orders</a>
+        </div>
+    </div>
+</div>
+<script src="../../js/config.js"></script>
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PHARMACY') window.location.href = '../login.html';
+
+    document.getElementById('pharmacyName').textContent = user.pharmacyName || 'Pharmacy';
+    document.getElementById('userName').textContent = user.pharmacyName || user.fullName;
+
+    async function loadStats() {
+        try {
+            // Orders
+            const orderRes = await fetch(`http://localhost:8080/api/orders/pharmacy/${user.id}`);
+            const orders = await orderRes.json();
+            document.getElementById('totalOrders').textContent = orders.length;
+            document.getElementById('pendingOrders').textContent = orders.filter(o => o.status === 'PENDING').length;
+
+            // Medicines
+            const medRes = await fetch('http://localhost:8080/api/medicines');
+            const medicines = await medRes.json();
+            document.getElementById('totalMedicines').textContent = medicines.length;
+            document.getElementById('lowStock').textContent = medicines.filter(m => m.stockQuantity < 10).length;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    loadStats();
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+POST http://localhost:8080/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Dr. Sharma",
+  "email": "dr.sharma@pharmacy.com",
+  "password": "doctor123",
+  "role": "DOCTOR",
+  "specialty": "General Medicine",
+  "licenseNumber": "MED12345",
+  "phone": "9876543211"
+}
+
+
+POST http://localhost:8080/api/auth/register
+Content-Type: application/json
+
+{
+"fullName": "Dr. Rajesh",
+"email": "dr.rajesh@pharmacy.com",
+"password": "doctor123",
+"role": "DOCTOR",
+"specialty": "Orthopedics",
+"licenseNumber": "MED77889",
+"phone": "9876543251"
+}
+
+GET http://localhost:8080/api/doctors
+
+POST http://localhost:8080/api/auth/register
+Content-Type: application/json
+
+{"fullName":"Dr. Test","email":"testdoctor999@pharmacy.com","password":"doctor123","role":"DOCTOR","specialty":"Test","licenseNumber":"TEST999","phone":"9999999999"}

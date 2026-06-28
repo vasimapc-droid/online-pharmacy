@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Prescriptions - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+    <style>
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .logo-text {
+            font-size: 22px;
+            font-weight: bold;
+            color: white;
+        }
+        .prescription-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .prescription-card.fulfilled {
+            opacity: 0.7;
+            border-left: 4px solid #10b981;
+        }
+        .prescription-card.active {
+            border-left: 4px solid #1a73e8;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .status-active { background: #dbeafe; color: #1e40af; }
+        .status-fulfilled { background: #d1fae5; color: #065f46; }
+        .status-expired { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../../images/logo.png" alt="MediCare Logo" class="logo-img" onerror="this.style.display='none'">
+
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="appointments.html"> Appointments</a>
+        <a href="prescriptions.html" class="active"> Prescriptions</a>
+        <a href="orders.html"> Orders</a>
+        <a href="chat.html"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <h1>My Prescriptions</h1>
+        <p style="color:#64748b; margin-bottom:20px;">
+            Prescriptions from your doctor consultations.
+            <strong style="color:#1a73e8;">ACTIVE</strong> prescriptions can be used to order medicines.
+            <strong style="color:#10b981;">FULFILLED</strong> prescriptions have already been used.
+        </p>
+
+        <div id="prescriptionsContainer">
+            <div class="spinner-container">
+                <div class="spinner"></div>
+                <p>Loading prescriptions...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PATIENT') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    async function loadPrescriptions() {
+        const container = document.getElementById('prescriptionsContainer');
+        container.innerHTML = '<div class="spinner-container"><div class="spinner"></div><p>Loading prescriptions...</p></div>';
+
+        try {
+            const res = await fetch(`http://localhost:8080/api/prescriptions/patient/${user.id}`);
+            const prescriptions = await res.json();
+
+            if (!prescriptions || prescriptions.length === 0) {
+                container.innerHTML = `
+                        <div class="card text-center" style="padding:40px;">
+                            <h3>📋 No Prescriptions Yet</h3>
+                            <p style="color:#64748b;">Book an appointment and consult a doctor to get prescriptions.</p>
+                            <a href="appointments.html" class="btn btn-primary" style="margin-top:15px;">Book Appointment</a>
+                        </div>`;
+                return;
+            }
+
+            container.innerHTML = prescriptions.reverse().map(p => `
+                    <div class="prescription-card ${p.status === 'ACTIVE' ? 'active' : 'fulfilled'}">
+                        <div style="display:flex; justify-content:space-between; align-items:start;">
+                            <div>
+                                <h3 style="margin:0; color:#1e293b;">👨‍⚕️ Dr. ${p.doctorName}</h3>
+                                <p style="color:#64748b; margin:5px 0; font-size:14px;">
+                                    📅 ${new Date(p.issuedDate).toLocaleDateString()} at ${new Date(p.issuedDate).toLocaleTimeString()}
+                                </p>
+                            </div>
+                            <span class="status-badge status-${p.status.toLowerCase()}">
+                                ${p.status === 'ACTIVE' ? '✅ Active' : p.status === 'FULFILLED' ? '✔️ Fulfilled' : '⏰ Expired'}
+                            </span>
+                        </div>
+
+                        <div style="margin-top:15px; padding:12px; background:#f8fafc; border-radius:8px;">
+                            <p style="margin:0;"><strong>Diagnosis:</strong> ${p.diagnosis}</p>
+                        </div>
+
+                        <div style="margin-top:10px; padding:12px; background:#f0fdf4; border-radius:8px;">
+                            <p style="margin:0;"><strong>💊 Prescribed Medicines:</strong></p>
+                            <p style="margin:5px 0 0; color:#065f46;">${p.notes}</p>
+                        </div>
+
+                        ${p.status === 'ACTIVE' ? `
+                            <div style="margin-top:15px;">
+                                <a href="orders.html" class="btn btn-primary">
+                                    🛒 Order Medicines Now
+                                </a>
+                                <small style="color:#64748b; margin-left:10px;">This prescription is valid for one-time use</small>
+                            </div>
+                        ` : `
+                            <div style="margin-top:15px; padding:10px; background:#f0fdf4; border-radius:8px; text-align:center;">
+                                <span style="color:#065f46;">✅ This prescription has been used. Consult doctor again for a new one.</span>
+                            </div>
+                        `}
+                    </div>
+                `).join('');
+
+        } catch (err) {
+            container.innerHTML = '<div class="alert alert-error">❌ Error loading prescriptions. Please refresh.</div>';
+        }
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+
+    loadPrescriptions();
+</script>
+</body>
+</html>

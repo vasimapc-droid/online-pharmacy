@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Appointments - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="appointments.html" class="active">Appointments</a>
+        <a href="prescriptions.html"> Prescriptions</a>
+        <a href="orders.html"> Orders</a>
+        <a href="chat.html"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <h1>My Appointments</h1>
+
+        <!-- Book Appointment Form -->
+        <div class="card" style="margin-top:20px;">
+            <h2>Book New Appointment</h2>
+            <form id="appointmentForm">
+                <div class="form-group">
+                    <label>Select Doctor</label>
+                    <select id="doctorSelect" required>
+                        <option value="">Loading doctors...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date & Time</label>
+                    <input type="datetime-local" id="appointmentDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Reason</label>
+                    <input type="text" id="reason" placeholder="e.g., Headache, fever" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Book Appointment</button>
+            </form>
+            <div id="bookMsg" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- Appointments List -->
+        <div class="card">
+            <h2>Upcoming & Past Appointments</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Doctor</th>
+                    <th>Date & Time</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody id="appointmentsTable">
+                <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="../../js/config.js"></script>
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PATIENT') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    let doctorsList = [];
+
+    // Load doctors dynamically from database
+    async function loadDoctors() {
+        try {
+            const res = await fetch('http://localhost:8080/api/doctors');
+            doctorsList = await res.json();
+            const select = document.getElementById('doctorSelect');
+
+            if (doctorsList.length === 0) {
+                select.innerHTML = '<option value="">No doctors available</option>';
+                return;
+            }
+
+            select.innerHTML = '<option value="">Select a doctor</option>' +
+                doctorsList.map(d =>
+                    `<option value="${d.id}">Dr. ${d.fullName} (${d.specialty || 'General Medicine'})</option>`
+                ).join('');
+        } catch (err) {
+            console.error('Error loading doctors:', err);
+            document.getElementById('doctorSelect').innerHTML = '<option value="">Error loading doctors</option>';
+        }
+    }
+
+    // Load appointments
+    async function loadAppointments() {
+        try {
+            const res = await fetch(`http://localhost:8080/api/appointments/patient/${user.id}`);
+            const appointments = await res.json();
+            const tbody = document.getElementById('appointmentsTable');
+
+            if (appointments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No appointments found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = appointments.map(a => {
+                // Find doctor ID from name
+                const doctor = doctorsList.find(d => d.fullName === a.doctorName ||
+                    a.doctorName.includes(d.fullName));
+                const doctorId = doctor ? doctor.id : null;
+
+                return `
+                        <tr>
+                            <td>${a.doctorName}</td>
+                            <td>${new Date(a.appointmentDate).toLocaleString()}</td>
+                            <td>${a.reason}</td>
+                            <td><span class="badge badge-${a.status.toLowerCase()}">${a.status}</span></td>
+                            <td>
+                                ${a.status === 'BOOKED' ? `
+                                    <button class="btn btn-danger" style="padding:5px 10px;font-size:12px;margin-right:5px;"
+                                        onclick="cancelAppointment(${a.id})">Cancel</button>
+                                    <button class="btn btn-primary" style="padding:5px 10px;font-size:12px;"
+                                        onclick="startChat(${a.id}, '${a.doctorName}', ${doctorId})">💬 Chat</button>
+                                ` : '—'}
+                            </td>
+                        </tr>
+                    `;
+            }).join('');
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // Start chat with doctor
+    function startChat(appointmentId, doctorName, doctorId) {
+        if (!doctorId) {
+            alert('Cannot start chat. Doctor ID not found.');
+            return;
+        }
+        localStorage.setItem('currentChat', JSON.stringify({
+            appointmentId: appointmentId,
+            doctorName: doctorName,
+            doctorId: doctorId
+        }));
+        window.location.href = 'chat.html';
+    }
+
+    // Book appointment
+    document.getElementById('appointmentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('bookMsg');
+
+        const doctorId = document.getElementById('doctorSelect').value;
+        if (!doctorId) {
+            msg.innerHTML = '<span style="color:red;">❌ Please select a doctor</span>';
+            return;
+        }
+
+        try {
+            const res = await fetch('http://localhost:8080/api/appointments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patientId: user.id,
+                    doctorId: doctorId,
+                    appointmentDate: document.getElementById('appointmentDate').value + ':00',
+                    reason: document.getElementById('reason').value
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                msg.innerHTML = '<span style="color:green;">✅ Appointment booked successfully! You can now chat with the doctor.</span>';
+                document.getElementById('appointmentForm').reset();
+                loadAppointments();
+            } else {
+                msg.innerHTML = `<span style="color:red;">❌ ${data.error}</span>`;
+            }
+        } catch (err) {
+            msg.innerHTML = '<span style="color:red;">Server error. Please try again.</span>';
+        }
+    });
+
+    // Cancel appointment
+    async function cancelAppointment(id) {
+        if (confirm('Are you sure you want to cancel this appointment?')) {
+            try {
+                await fetch(`http://localhost:8080/api/appointments/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'CANCELLED' })
+                });
+                loadAppointments();
+            } catch (err) {
+                alert('Failed to cancel appointment');
+            }
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('currentChat');
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+
+    // Initialize
+    async function init() {
+        await loadDoctors();
+        await loadAppointments();
+    }
+
+    init();
+</script>
+</body>
+</html>

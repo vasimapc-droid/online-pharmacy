@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Doctors - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="manage-patients.html"> Patients</a>
+        <a href="manage-doctors.html" class="active">️ Doctors</a>
+        <a href="manage-pharmacies.html"> Pharmacies</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Manage Doctors</h1>
+        <p style="color:#64748b;">Total: <strong id="doctorCount">0</strong> doctors</p>
+
+        <div class="card" style="margin-top:20px;">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Specialty</th>
+                    <th>License</th>
+                    <th>Phone</th>
+                </tr>
+                </thead>
+                <tbody id="doctorsTable">
+                <tr><td colspan="6" style="text-align:center;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'ADMIN') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    async function loadDoctors() {
+        try {
+            const res = await fetch('http://localhost:8080/api/admin/doctors');
+            const doctors = await res.json();
+            document.getElementById('doctorCount').textContent = doctors.length;
+            const tbody = document.getElementById('doctorsTable');
+
+            if (doctors.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No doctors found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = doctors.map(d => `
+                <tr>
+                    <td>#${d.id}</td>
+                    <td><strong>Dr. ${d.fullName}</strong></td>
+                    <td>${d.email}</td>
+                    <td>${d.specialty || 'N/A'}</td>
+                    <td>${d.licenseNumber || 'N/A'}</td>
+                    <td>${d.phone || 'N/A'}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            document.getElementById('doctorsTable').innerHTML =
+                '<tr><td colspan="6" style="text-align:center;color:red;">Error loading doctors.</td></tr>';
+        }
+    }
+
+    loadDoctors();
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>

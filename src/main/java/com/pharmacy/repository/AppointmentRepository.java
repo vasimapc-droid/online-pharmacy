@@ -1,0 +1,16 @@
+package com.pharmacy.repository;
+
+import com.pharmacy.model.Appointment;
+import com.pharmacy.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
+    List<Appointment> findByPatient(User patient);
+    List<Appointment> findByDoctor(User doctor);
+    List<Appointment> findByDoctorAndAppointmentDateBetween(User doctor, LocalDateTime start, LocalDateTime end);
+    List<Appointment> findByPatientAndStatus(User patient, Appointment.Status status);
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html" class="active"> Dashboard</a>
+        <a href="manage-patients.html"> Patients</a>
+        <a href="manage-doctors.html"> Doctors</a>
+        <a href="manage-pharmacies.html"> Pharmacies</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Admin Dashboard</h1>
+
+        <div class="stats-row" style="margin-top:25px;">
+            <div class="stat-card">
+                <h3 id="totalPatients">...</h3>
+                <p>Total Patients</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalDoctors">...</h3>
+                <p>Total Doctors</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalPharmacies">...</h3>
+                <p>Total Pharmacies</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalUsers">...</h3>
+                <p>Total Users</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Quick Management</h2>
+            <a href="manage-patients.html" class="btn btn-primary">Manage Patients</a>
+            <a href="manage-doctors.html" class="btn btn-success" style="margin-left:10px;">Manage Doctors</a>
+            <a href="manage-pharmacies.html" class="btn btn-warning" style="margin-left:10px;">Manage Pharmacies</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'ADMIN') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    async function loadStats() {
+        try {
+            const res = await fetch('http://localhost:8080/api/admin/dashboard');
+            const stats = await res.json();
+            document.getElementById('totalPatients').textContent = stats.totalPatients || 0;
+            document.getElementById('totalDoctors').textContent = stats.totalDoctors || 0;
+            document.getElementById('totalPharmacies').textContent = stats.totalPharmacies || 0;
+            document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    loadStats();
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>

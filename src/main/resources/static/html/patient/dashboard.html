@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName" style="margin-right:15px;"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html" class="active"> Dashboard</a>
+        <a href="appointments.html">Appointments</a>
+        <a href="prescriptions.html"> Prescriptions</a>
+        <a href="orders.html"> Orders</a>
+        <a href="chat.html"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Welcome, <span id="patientName"></span>!</h1>
+
+        <div class="stats-row" style="margin-top:25px;">
+            <div class="stat-card">
+                <h3 id="apptCount">0</h3>
+                <p>Upcoming Appointments</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="prescCount">0</h3>
+                <p>Active Prescriptions</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="orderCount">0</h3>
+                <p>Recent Orders</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Quick Actions</h2>
+            <a href="appointments.html" class="btn btn-primary">Book Appointment</a>
+            <a href="orders.html" class="btn btn-success" style="margin-left:10px;">Order Medicines</a>
+        </div>
+    </div>
+</div>
+<script src="../../js/config.js"></script>
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+
+    if (!user || user.role !== 'PATIENT') {
+        window.location.href = '../login.html';
+    }
+
+    document.getElementById('patientName').textContent = user.fullName;
+    document.getElementById('userName').textContent = user.fullName;
+
+    // Load stats
+    async function loadStats() {
+        try {
+            const apptRes = await fetch(`http://localhost:8080/api/appointments/patient/${user.id}`);
+            const appts = await apptRes.json();
+            document.getElementById('apptCount').textContent = appts.length;
+
+            const prescRes = await fetch(`http://localhost:8080/api/prescriptions/patient/${user.id}`);
+            const prescs = await prescRes.json();
+            document.getElementById('prescCount').textContent = prescs.length;
+
+            const orderRes = await fetch(`http://localhost:8080/api/orders/patient/${user.id}`);
+            const orders = await orderRes.json();
+            document.getElementById('orderCount').textContent = orders.length;
+        } catch (err) {
+            console.error('Error loading stats:', err);
+        }
+    }
+
+    loadStats();
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>

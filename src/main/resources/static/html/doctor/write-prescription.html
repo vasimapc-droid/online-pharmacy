@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Write Prescription - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="appointments.html"> Appointments</a>
+        <a href="write-prescription.html" class="active"> Write Prescription</a>
+        <a href="chat.html"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Write Prescription</h1>
+
+        <div class="card" style="margin-top:20px; max-width:600px;">
+            <form id="prescriptionForm">
+                <div class="form-group">
+                    <label>Select Appointment (Optional)</label>
+                    <select id="appointmentSelect">
+                        <option value="">No appointment - Direct prescription</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Select Patient <span style="color:red;">*</span></label>
+                    <select id="patientSelect" required>
+                        <option value="">Loading patients...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Diagnosis <span style="color:red;">*</span></label>
+                    <input type="text" id="diagnosis" placeholder="e.g., Viral fever" required>
+                </div>
+                <div class="form-group">
+                    <label>Prescription Notes / Medicines <span style="color:red;">*</span></label>
+                    <textarea id="notes" rows="4" placeholder="e.g., Paracetamol 500mg twice daily for 3 days" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Issue Prescription</button>
+            </form>
+            <div id="prescMsg" style="margin-top:15px; text-align:center; font-weight:bold;"></div>
+        </div>
+
+        <!-- Recent Prescriptions -->
+        <div class="card" style="margin-top:20px;">
+            <h2>Recent Prescriptions</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Patient</th>
+                    <th>Diagnosis</th>
+                    <th>Notes</th>
+                    <th>Date</th>
+                </tr>
+                </thead>
+                <tbody id="prescriptionsTable">
+                <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="../../js/config.js"></script>
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'DOCTOR') {
+        window.location.href = '../login.html';
+    }
+    document.getElementById('userName').textContent = 'Dr. ' + user.fullName;
+
+    let allPatients = [];
+
+    // Load patients and appointments
+    async function loadPatientsAndAppointments() {
+        try {
+            const res = await fetch(`http://localhost:8080/api/appointments/doctor/${user.id}`);
+            const appointments = await res.json();
+
+            const patientSelect = document.getElementById('patientSelect');
+            const apptSelect = document.getElementById('appointmentSelect');
+
+            // Build unique patient list from appointments
+            const seen = new Set();
+            allPatients = [];
+
+            for (const appt of appointments) {
+                const pid = appt.patientId;
+                if (pid && !seen.has(pid)) {
+                    seen.add(pid);
+                    allPatients.push({
+                        id: pid,
+                        name: appt.patientName
+                    });
+                }
+            }
+
+            // Also add known patients if not loaded from appointments
+            const knownPatients = [
+                { id: 8, name: 'Rahul Patient' },
+                { id: 9, name: 'Priya Patient' }
+            ];
+            for (const p of knownPatients) {
+                if (!seen.has(p.id)) {
+                    allPatients.push(p);
+                }
+            }
+
+            // Populate patient dropdown
+            if (allPatients.length === 0) {
+                patientSelect.innerHTML = '<option value="">No patients found. Ask patients to book appointments first.</option>';
+            } else {
+                patientSelect.innerHTML = '<option value="">Select patient</option>' +
+                    allPatients.map(p => `<option value="${p.id}">${p.name} (ID: ${p.id})</option>`).join('');
+            }
+
+            // Populate appointment dropdown (only BOOKED)
+            const bookedAppts = appointments.filter(a => a.status === 'BOOKED');
+            apptSelect.innerHTML = '<option value="">No appointment - Direct prescription</option>' +
+                bookedAppts.map(a =>
+                    `<option value="${a.id}">#${a.id} - ${a.patientName} (${a.reason || 'N/A'})</option>`
+                ).join('');
+
+            // Auto-select patient if appointment chosen
+            apptSelect.addEventListener('change', function() {
+                const selectedApptId = this.value;
+                if (selectedApptId) {
+                    const selectedAppt = appointments.find(a => a.id == selectedApptId);
+                    if (selectedAppt && selectedAppt.patientId) {
+                        patientSelect.value = selectedAppt.patientId;
+                    }
+                }
+            });
+
+        } catch (err) {
+            console.error('Error loading data:', err);
+            document.getElementById('patientSelect').innerHTML =
+                '<option value="">Error loading patients. Please refresh.</option>';
+        }
+    }
+
+    // Load recent prescriptions
+    async function loadRecentPrescriptions() {
+        try {
+            const res = await fetch(`http://localhost:8080/api/prescriptions/doctor/${user.id}`);
+            const prescs = await res.json();
+            const tbody = document.getElementById('prescriptionsTable');
+
+            if (!prescs || prescs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No prescriptions issued yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = prescs.slice(-10).reverse().map((p, index) => `
+                    <tr>
+                        <td>${prescs.length - index}</td>
+                        <td><strong>${p.patientName}</strong></td>
+                        <td>${p.diagnosis}</td>
+                        <td>${p.notes}</td>
+                        <td>${new Date(p.issuedDate).toLocaleDateString()}</td>
+                    </tr>
+                `).join('');
+        } catch (err) {
+            console.error('Error loading prescriptions:', err);
+            document.getElementById('prescriptionsTable').innerHTML =
+                '<tr><td colspan="5" class="text-center">Error loading prescriptions</td></tr>';
+        }
+    }
+
+    // Submit prescription form
+    document.getElementById('prescriptionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('prescMsg');
+        msg.innerHTML = '<span style="color:blue;">⏳ Issuing prescription...</span>';
+
+        const patientId = document.getElementById('patientSelect').value;
+        const diagnosis = document.getElementById('diagnosis').value.trim();
+        const notes = document.getElementById('notes').value.trim();
+
+        // Validation
+        if (!patientId) {
+            msg.innerHTML = '<span style="color:red;">❌ Please select a patient</span>';
+            return;
+        }
+        if (!diagnosis) {
+            msg.innerHTML = '<span style="color:red;">❌ Please enter diagnosis</span>';
+            return;
+        }
+        if (!notes) {
+            msg.innerHTML = '<span style="color:red;">❌ Please enter prescription notes</span>';
+            return;
+        }
+
+        const body = {
+            doctorId: user.id,
+            patientId: parseInt(patientId),
+            diagnosis: diagnosis,
+            notes: notes
+        };
+
+        // Add appointment ID if selected
+        const apptId = document.getElementById('appointmentSelect').value;
+        if (apptId && apptId !== '') {
+            body.appointmentId = parseInt(apptId);
+        }
+
+        console.log('Sending prescription:', body);
+
+        try {
+            const res = await fetch('http://localhost:8080/api/prescriptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                msg.innerHTML = `
+                        <span style="color:green;">✅ Prescription issued successfully!</span><br>
+                        <small>Patient: ${data.patientName} | Date: ${new Date(data.issuedDate).toLocaleString()}</small>
+                    `;
+
+                // Reset form
+                document.getElementById('prescriptionForm').reset();
+                document.getElementById('appointmentSelect').innerHTML =
+                    '<option value="">No appointment - Direct prescription</option>';
+
+                // Reload data
+                loadPatientsAndAppointments();
+                loadRecentPrescriptions();
+            } else {
+                msg.innerHTML = `<span style="color:red;">❌ ${data.error || 'Failed to issue prescription'}</span>`;
+            }
+        } catch (err) {
+            console.error('Submit error:', err);
+            msg.innerHTML = '<span style="color:red;">❌ Server error. Please check if backend is running.</span>';
+        }
+    });
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+
+    // Initialize page
+    loadPatientsAndAppointments();
+    loadRecentPrescriptions();
+</script>
+</body>
+</html>

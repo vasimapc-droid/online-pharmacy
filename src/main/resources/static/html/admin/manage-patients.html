@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Patients - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="manage-patients.html" class="active"> Patients</a>
+        <a href="manage-doctors.html"> Doctors</a>
+        <a href="manage-pharmacies.html"> Pharmacies</a>
+    </div>
+
+    <div class="main-content">
+        <h1>Manage Patients</h1>
+        <p style="color:#64748b;">Total: <strong id="patientCount">0</strong> patients</p>
+
+        <div class="card" style="margin-top:20px;">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Registered</th>
+                </tr>
+                </thead>
+                <tbody id="patientsTable">
+                <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'ADMIN') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    async function loadPatients() {
+        try {
+            const res = await fetch('http://localhost:8080/api/admin/patients');
+            const patients = await res.json();
+            document.getElementById('patientCount').textContent = patients.length;
+            const tbody = document.getElementById('patientsTable');
+
+            if (patients.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No patients found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = patients.map(p => `
+                <tr>
+                    <td>#${p.id}</td>
+                    <td><strong>${p.fullName}</strong></td>
+                    <td>${p.email}</td>
+                    <td>${p.phone || 'N/A'}</td>
+                    <td>${p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A'}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            document.getElementById('patientsTable').innerHTML =
+                '<tr><td colspan="5" style="text-align:center;color:red;">Error loading patients. Check if backend is running.</td></tr>';
+        }
+    }
+
+    loadPatients();
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>

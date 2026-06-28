@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Doctor - MediCare</title>
+    <link rel="stylesheet" href="../../../css/style.css">
+    <style>
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-img {
+            width: 250px;
+            height: 70px;
+            border-radius: 8px;
+            object-fit: contain;
+
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: bold;
+            color: white;
+        }
+
+        /* Larger logo for landing page */
+        .hero-logo {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 20px;
+            border-radius: 20px;
+            object-fit: contain;
+        }
+
+        /* Logo in login/register cards */
+        .card-logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            display: block;
+            border-radius: 12px;
+        }
+        .chat-container { max-width: 700px; margin: 0 auto; }
+        .messages-box {
+            height: 400px; overflow-y: auto; border: 1px solid #e2e8f0;
+            border-radius: 12px; padding: 20px; background: #f8fafc; margin-bottom: 15px;
+        }
+        .message { margin-bottom: 12px; padding: 10px 16px; border-radius: 12px; max-width: 70%; word-wrap: break-word; }
+        .message.sent { background: #1a73e8; color: white; margin-left: auto; text-align: right; }
+        .message.received { background: white; border: 1px solid #e2e8f0; }
+        .message .msg-sender { font-size: 12px; font-weight: bold; margin-bottom: 3px; }
+        .message .msg-time { font-size: 11px; opacity: 0.7; margin-top: 4px; }
+        .chat-input { display: flex; gap: 10px; }
+        .chat-input input { flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 15px; }
+        .no-access { text-align: center; padding: 60px 20px; }
+        .no-access h2 { color: #ef4444; margin-bottom: 15px; }
+        .chat-header { background: #f0f4ff; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="logo-container">
+        <img src="../../images/logo.jpg" alt="MediCare Logo" class="logo-img">
+        <!--        <span class="logo-text">MediCare</span>-->
+    </div>
+    <div class="nav-links">
+        <span id="userName"></span>
+        <a href="#" onclick="logout()">Logout</a>
+    </div>
+</nav>
+
+<div class="layout">
+    <div class="sidebar">
+        <a href="dashboard.html"> Dashboard</a>
+        <a href="appointments.html"> Appointments</a>
+        <a href="prescriptions.html"> Prescriptions</a>
+        <a href="orders.html"> Orders</a>
+        <a href="chat.html" class="active"> Chat</a>
+    </div>
+
+    <div class="main-content">
+        <div id="noAccess" class="chat-container no-access">
+            <h2> No Active Consultation</h2>
+            <p style="color:#64748b; margin-bottom:20px;">Book an appointment first to chat with a doctor.</p>
+            <a href="appointments.html" class="btn btn-primary">Book Appointment</a>
+        </div>
+
+        <div id="chatArea" class="chat-container" style="display:none;">
+            <div class="chat-header">
+                <h2 style="margin:0;"> Chat with <span id="doctorName"></span></h2>
+                <p style="margin:5px 0 0; color:#64748b;">Appointment #<span id="apptId"></span></p>
+            </div>
+
+            <div class="messages-box" id="messagesBox">
+                <p style="text-align:center; color:#94a3b8;">Loading messages...</p>
+            </div>
+
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="Type your message..."
+                       onkeypress="if(event.key==='Enter') sendMessage()">
+                <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'PATIENT') window.location.href = '../login.html';
+    document.getElementById('userName').textContent = user.fullName;
+
+    const chatInfo = JSON.parse(localStorage.getItem('currentChat'));
+    let refreshInterval = null;
+
+    if (chatInfo && chatInfo.doctorId) {
+        document.getElementById('noAccess').style.display = 'none';
+        document.getElementById('chatArea').style.display = 'block';
+        document.getElementById('doctorName').textContent = chatInfo.doctorName;
+        document.getElementById('apptId').textContent = chatInfo.appointmentId;
+
+        const DOCTOR_ID = chatInfo.doctorId;
+        const APPOINTMENT_ID = chatInfo.appointmentId;
+
+        async function loadMessages() {
+            try {
+                const res = await fetch(`http://localhost:8080/api/messages/conversation?user1=${user.id}&user2=${DOCTOR_ID}`);
+                const messages = await res.json();
+                const box = document.getElementById('messagesBox');
+
+                if (!messages || messages.length === 0) {
+                    box.innerHTML = '<p style="text-align:center; color:#94a3b8;">Start your conversation! Describe your symptoms here.</p>';
+                    return;
+                }
+
+                box.innerHTML = messages.map(m => `
+                        <div class="message ${m.senderId === user.id ? 'sent' : 'received'}">
+                            <div class="msg-sender">${m.senderId === user.id ? 'You' : 'Dr. ' + m.senderName}</div>
+                            <div>${m.content}</div>
+                            <div class="msg-time">${new Date(m.sentAt).toLocaleTimeString()}</div>
+                        </div>
+                    `).join('');
+
+                box.scrollTop = box.scrollHeight;
+            } catch (err) {
+                console.error('Load messages error:', err);
+            }
+        }
+
+        window.sendMessage = async function() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content) return;
+
+            try {
+                const res = await fetch('http://localhost:8080/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        senderId: user.id,
+                        receiverId: DOCTOR_ID,
+                        appointmentId: APPOINTMENT_ID,
+                        content: content
+                    })
+                });
+
+                if (res.ok) {
+                    input.value = '';
+                    loadMessages(); // Reload immediately
+                }
+            } catch (err) {
+                console.error('Send error:', err);
+            }
+        };
+
+        // Load messages now
+        loadMessages();
+
+        // Auto-refresh every 2 seconds
+        refreshInterval = setInterval(loadMessages, 2000);
+    }
+
+    function logout() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        localStorage.removeItem('currentChat');
+        localStorage.clear();
+        window.location.href = '../login.html';
+    }
+</script>
+</body>
+</html>
