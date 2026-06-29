@@ -24,4 +24,14 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         return authService.login(request.get("email"), request.get("password"));
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
+        return authService.forgotPassword(request.get("email"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
+        return authService.resetPassword(request.get("token"), request.get("newPassword"));
+    }
 }

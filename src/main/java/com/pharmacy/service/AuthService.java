@@ -10,10 +10,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class AuthService {
@@ -44,9 +41,6 @@ public class AuthService {
             if (password == null || password.length() < 6) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Password must be at least 6 characters"));
             }
-            if (roleStr == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Role is required"));
-            }
 
             if (userRepository.findByEmail(email.trim().toLowerCase()).isPresent()) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -58,7 +52,7 @@ public class AuthService {
                 role = Role.valueOf(roleStr.toUpperCase());
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Invalid role. Use PATIENT, DOCTOR, PHARMACY, or ADMIN"));
+                        .body(Map.of("error", "Invalid role"));
             }
 
             User user = new User();
@@ -90,7 +84,7 @@ public class AuthService {
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Registration failed: " + e.getMessage()));
+                    .body(Map.of("error", "Registration failed"));
         }
     }
 
@@ -129,5 +123,46 @@ public class AuthService {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<?> forgotPassword(String email) {
+        Optional<User> userOpt = userRepository.findByEmail(email.trim().toLowerCase());
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "No account found with this email address"));
+        }
+
+        User user = userOpt.get();
+        String token = UUID.randomUUID().toString();
+        user.setResetToken(token);
+        userRepository.save(user);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", "Password reset token generated successfully");
+        response.put("resetToken", token);
+
+        return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<?> resetPassword(String token, String newPassword) {
+        if (newPassword == null || newPassword.length() < 6) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Password must be at least 6 characters"));
+        }
+
+        Optional<User> userOpt = userRepository.findByResetToken(token);
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Invalid or expired reset token"));
+        }
+
+        User user = userOpt.get();
+        user.setPassword(encoder.encode(newPassword));
+        user.setResetToken(null);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("message", "Password reset successful. You can now login with your new password."));
     }
 }
